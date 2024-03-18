@@ -1,0 +1,58 @@
+apiVersion: skaffold/v2alpha3
+kind: Config
+deploy:
+  kubectl: #manifests tells skaffold there is a collection of config files intended for kubernetes in side this dir:
+    manifests: #we want skaffold to watch all these files, and if changes are made skaffold automatically reapplies the config file to the kubernetes cluster.
+      - ./infra/k8s/*   #it will start up all the configs we we start up scaffold, and delete all the objects associated with the config files when we stop skaffold as well
+build:
+  local:
+    push: false #by default whenever skaffold makes a change or rebuilds an image it will push it up to docker hub this isnt required when we are using skaffold
+  artifacts: #tells skaffold about something inside of our project that it needs to maintain we are saying there is some pod with these properties
+    - image: sandersonii/client
+      context: client #in directory client. Any changes made to files inside the directory skaffold is going to try to take those changes and somehow update our pod
+      docker:
+        dockerfile: Dockerfile #name of docker file
+      sync: #things to update
+        manual:
+          - src: 'src/**/*.js' #change to a .js file skaffold will try to take that changed file and directly copy it in to our pod, so it will always have the latest code inside it
+            dest: . # any changes made outside what is specified here, then skaffold will try to completely rebuild our image and update the deployment tied to it
+    - image: sandersonii/comments
+      context: comments
+      docker:
+        dockerfile: Dockerfile
+      sync: #things to update
+        manual:
+          - src: '*.js'
+            dest: .
+    - image: sandersonii/event-bus
+      context: event-bus
+      docker:
+        dockerfile: Dockerfile
+      sync: #things to update
+        manual:
+          - src: '*.js'
+            dest: .
+    - image: sandersonii/moderation
+      context: moderation
+      docker:
+        dockerfile: Dockerfile
+      sync: #things to update
+        manual:
+          - src: '*.js'
+            dest: .
+    - image: sandersonii/posts
+      context: posts
+      docker:
+        dockerfile: Dockerfile
+      sync: #things to update
+        manual:
+          - src: '*.js'
+            dest: .
+    - image: sandersonii/query
+      context: query
+      docker:
+        dockerfile: Dockerfile
+      sync: #things to update
+        manual:
+          - src: '*.js'
+            dest: .

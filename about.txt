@@ -1,0 +1,3 @@
+A minimal microservice app, with few dependencies to demonstrate the event bus architecture of a microservice.
+This is not a production level app, and is more for learning about the inner workings of how a microservice built
+in this way is structured

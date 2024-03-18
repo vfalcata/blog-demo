@@ -1,0 +1,31 @@
+apiVersion: apps/v1 #deployment is in the bucket of apps/v1 (recall pods were only in v1)
+kind: Deployment
+metadata:
+  name: moderation-depl #we suffix with depl so we can distinguish that it is a deployment
+spec:
+  replicas: 1 #the number of pods we want to create running some particular image
+  selector: #tells the deployment to look at all the different pods
+    matchLabels: #tells deployment to match labels (key value pairs) of pods.
+      app: moderation #find all the pods that have this key value pair, we define the key value pair ourselves so it is arbitrary
+  template: #where we specify the exact configuration of the pod we want the deployment to create, it is like a pod spec or pod config file
+    metadata: #configuration for the pod that the deployment is going to make
+      labels: #we want to set the following labels:
+        app: moderation
+    spec:
+      containers:
+        - name: moderation
+          image: sandersonii/moderation
+---
+apiVersion: v1 #Delimiter to create multiple objects inside a single file
+kind: Service #service for communication
+metadata:
+  name: moderation-srv #our own arbitrary defined properties
+spec:
+  type: ClusterIP # service type OPTIONAL because this is default if we leave it out
+  selector: #selects the pod to expose. We are telling the service to try to find ALL the pods with label app: posts
+    app: moderation #and expose those pods to the outside world. The label of the pod would have been set in the deployment config under spec:template:metadata:labels
+  ports: #lists out all ports we want to expose on the target pods
+    - name: moderation
+      protocol: TCP
+      port: 4003 #port of the NodePort Service that internally redirects it to targetPort of the pod
+      targetPort: 4003 #the port actually attached to the pod and its container and where traffic is ends up

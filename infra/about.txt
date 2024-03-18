@@ -1,0 +1,4 @@
+This dir infra is short for infrastructure it contains all the configuration all the code related to the deployment
+and management of all our different services
+
+the k8s is a file for kubernetes (k8s is short for kubernetes)

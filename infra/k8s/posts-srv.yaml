@@ -1,0 +1,20 @@
+apiVersion: v1 # can be a separate file or included in the depl delimited by ---, see event-bus-depl.yaml for example
+kind: Service #service for communication
+metadata:
+  name: post-srv #our own arbitrary defined properties
+spec:
+  type: NodePort # service type
+  selector: #selects the pod to expose. We are telling the service to try to find ALL the pods with label app: posts
+    app: posts #and expose those pods to the outside world. The label of the pod would have been set in the deployment config under spec:template:metadata:labels
+  ports: #lists out all ports we want to expose on the target pods
+    - name: posts
+      protocol: TCP
+      port: 4000 #port of the NodePort Service that internally redirects it to targetPort of the pod
+      targetPort: 4000 #the port actually attached to the pod and its container and where traffic is ends up
+# A nodePort is the actual port we use to access the the node containing the pod. we can get this number from 'kubectl get services'
+# this is not a NodePort as in this spec type. The port is usually 3XXXX and is randomly assigned.
+# ****IF YOU ARE USING MINIKUBE, you must get the minikube IP you must run:
+#   minikube ip
+# this will get you the ip. otherwise (mac/windows) localhost is fine
+# ex: 192.168.49.2:31480/posts
+# this is just for development purposes, and NOT what clients will be using

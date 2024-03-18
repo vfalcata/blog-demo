@@ -1,0 +1,137 @@
+This project is meant as a simplified microservice to grasp the basics of microservices. It is not meant to be a full fledged app.
+there will be no database yet, so data will be wiped on each restart
+
+first generate a new react application with the command:
+npx create-react-app client
+then in the posts as well as the comments directory run the command
+npm init -y
+npm install express cors axios nodemon
+
+remove all react src files as they are just boiler plate
+in the client folder issue the cmd
+npm install axios
+this is useful for making requests to the express api
+
+to get all servers running you must issue:
+npm start
+on client, blog and comment
+we will also utilize bootstrap's css library to make things look nice
+make sure you only load the href for the css and NOT the src tag
+
+CORS REQUEST ERROR
+this is an issue anytime we are looking at some domain or domain with a port or
+domain with a subdomain that is different than the url domain which we are trying
+to make a request too. so in the blog app different ports were used for the client
+and posts and blogs so it threw a CORS request error. The browser will reject the
+request to the other port UNLESS the orignal port provides a very specific set of
+headers in the request
+to generate these headers we can use a module and install
+npm install cors
+and then require for all the ports that are different than the client, so in this case
+port 4000 for posts and 4001 for comments. then wire it up to the application as middleware
+we add this line to the index.js of those files (after requiring cors)
+app.use(cors())
+this will set up the middleware and there will be no more cors request errors
+..Later on this wont be required as we will make changes to the architecture
+
+ISSUES WITH CURRENT ARCHITECTURE After react complete:
+we are making one request per comment, and thats the root issue.
+So from the client we make a get request for post, this returns a collection of posts. Each
+post in this collection must then call GET to comments. this is extremely inefficient
+
+Event Broker
+Commonly used in SYNC architectures. The purpose of the event broker is to receive notification
+from different services. take those notifications/events and route them off to all the other services
+that we are running.
+
+
+QUERY SERVICE
+we could use an Event broker to route events to a query service which listens to anytime a post or comment is created
+it will take all the different posts and comments and assemble them to an efficient data structure that can solve
+the inefficiency issue such that reduce the requests
+example run..
+some one creates a post, the event goes to the event bus. The Query service listens and sees it and creates a db entry
+for the created post with comments set to initial empty array. Then when a comment is created, it will match the id of that
+comment and add it to the array of the post. after which a client can just make a request to the query service to get all the data.
+PROS: zero dependencies and FAST
+CONS: data duplication, hard to understand
+
+EVENT BUSES:
+-Many different implementations..
+-Receives events publishses them to listeners
+-Many different subrl features that make async communication way easier or way harder
+-We are going to build our own event bus using Express. It will not implement the vast majority of features a normal bus has
+-for the next production grade  app an opensource event bus will be used
+
+Example of Event bus implementation
+If a post is created, the event is sent to the event bus.
+The event bus then sends posts to all the relevant services so they can update their db, this includes the original service that sent the event
+
+
+Important Note about Node v15 and Unhandled Promise Rejections
+In the upcoming lecture, we will be adding POST requests to our Event bus.
+If you are using the newest version of Node (v15+) instead of the LTS (v14) version,
+there are going to be some breaking changes. Most notably that Unhandled Promise Rejections
+are now treated as errors instead of warnings and will cause the servers to crash.
+You can read up about it here:
+https://nodejs.medium.com/node-js-v15-0-0-is-here-deb00750f278
+At the bare minimum, you'll need to add a catch block to every request of the event-bus/index.js:
+
+      axios.post('http://localhost:4000/events', event).catch((err) => {
+        console.log(err.message);
+      });
+      axios.post('http://localhost:4001/events', event).catch((err) => {
+        console.log(err.message);
+      });
+      axios.post('http://localhost:4002/events', event).catch((err) => {
+        console.log(err.message);
+      });
+      res.send({ status: 'OK' });
+
+The specific service in charge of a module (ex comments) should be in charge of all the business logic and rules.
+You should try to keep things domain specific.
+Upon an update it can emit an update event where other microservices that depend on it will read. It tells other service
+to make the update if they care about it at all, no need to do any processing or logic
+
+MISSING EVENTS
+if a service goes down, and events occur that it needed to record then our microservices will be out of sync.
+Ex if moderation service goes down and a comment is posted, it can never be moderated and thus will be stuck on pending
+forever.
+    Solutions
+    1) Sync request, on launch of a new service that requires info from other services, you can create
+    a method that asks each service for all the info it requires in order to sync it. Ex if the query
+    service was the last service created in our app, it can ask for all post from the post service and
+    comments from the comments service
+    2) THE ONLY EXCEPTION TO DB ACCESS
+    When a service is first getting online, it can get direct access to all required database. This
+    would be the only time it will occur. The downside is that we are still make a sync request
+    and our service would require access to multiple database, say for example you have sql and nosql database,
+    now your service would need code to interface with both
+    3) Store all events in the event bus. When any service emits an event to the event bus, the event WILL
+    send that event to all the other services AND store the event internally. When a new service is introduced
+    the service can just pull all the events in order to synchronize. The downside is that the data store
+    can be extremely huge, but again data storage is cheap. If a service goes of line, it can roll back to a
+    point where the last event was recorded and process from there
+
+ISSUES WITH THE  FINAL EVENT BUS, AND COUPLING (prior to docker and kubernetes)
+OVERWORKED SERVICES
+Currently the event bus is tasked with sending each event to all services. So it needs to know where all the services are.
+Balance the load, and take traffic times in to considerations, as well as which services should be sent events, and which
+should be halted. This is a very difficult task to accomplish
+Consider the scenarios....
+    Using a single virtual machine:
+    sometimes a specific service is being used a lot. To solve this we can have the same service run on multiple ports
+    the we can load balance between these ports, random pick of each is an ok way to solve this. For each new port
+    remember that we would have to add them to the event bus. This will introduce coupling, since anytime we change the
+    number of ports we have to change the event bus and deploy that as well.
+
+    Using another virtual machine:
+    Additionally if the one group of services is overburdening the virtual machine, a separate virtual machine is deployed to handle
+    only those services, this introduces another complexity. The eventbus on the original virtual machine must now have a way to reach  out
+    to the new virtual machine and send events to them. So we would have to go to the eventbus and update the ip for each request
+
+    Multiple virtual machines, with time dependent loads:
+    Now what if only specific times of the day the website has a large load, so we only want the second
+    virtual machine to run when this load is active, so outside this high load time we might want to shut
+    down the other virtual machine to save on costs. Now the event bus needs to know that the second virtual
+    machine is closed and stop sending it events. Yet another group of updates.
